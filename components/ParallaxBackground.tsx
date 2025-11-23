@@ -14,8 +14,21 @@ export const ParallaxBackground: React.FC<ParallaxBackgroundProps> = ({ isNight 
       setMousePos({ x, y });
     };
 
+    const handleDeviceOrientation = (e: DeviceOrientationEvent) => {
+         if (e.beta && e.gamma) {
+             const x = Math.min(Math.max(e.gamma / 45, -1), 1);
+             const y = Math.min(Math.max(e.beta / 45, -1), 1);
+             setMousePos({ x, y });
+         }
+    };
+
     window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
+    window.addEventListener('deviceorientation', handleDeviceOrientation);
+
+    return () => {
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('deviceorientation', handleDeviceOrientation);
+    };
   }, []);
 
   const parallaxOffset = {
@@ -77,6 +90,18 @@ export const ParallaxBackground: React.FC<ParallaxBackgroundProps> = ({ isNight 
             isNight ? 'bg-indigo-500/20' : 'bg-pink-500/20'
           }`}
         />
+      </div>
+
+      {/* CLOUDS */}
+       <div
+        className="absolute inset-[-20%] opacity-20"
+        style={{
+          transform: `translate3d(${mousePos.x * 40}px, ${mousePos.y * 40}px, 0)`,
+          transition: 'transform 0.4s ease-out',
+        }}
+      >
+         <div className="absolute top-10 left-10 w-64 h-24 bg-white/10 blur-xl rounded-full" />
+         <div className="absolute bottom-20 right-20 w-80 h-32 bg-white/10 blur-xl rounded-full" />
       </div>
 
       {/* Camada 4 - Partículas flutuantes */}

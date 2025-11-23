@@ -1,5 +1,5 @@
 
-import { ItemType, Parcel } from './types';
+import { ItemType, Parcel, Hero } from './types';
 
 export const GRID_SIZE = 6; // 6x6
 export const MAX_ITEM_LEVEL = 10;
@@ -10,6 +10,39 @@ export const ITEM_DEFINITIONS: Record<ItemType, { name: string; hue: string; bas
   [ItemType.CROP]: { name: 'Trigo', hue: 'hue-rotate-90', baseValue: 3 },
   [ItemType.POTION]: { name: 'Elixir', hue: 'hue-rotate-240', baseValue: 15 },
 };
+
+export const INITIAL_HEROES: Hero[] = [
+    {
+        id: 'h1',
+        name: 'Ignis, o Flamejante',
+        description: 'Um guerreiro que canaliza o fogo interior para incinerar seus inimigos.',
+        element: 'fire',
+        abilityName: 'Explosão Solar',
+        abilityDescription: 'Destrói itens em área e gera pontos.',
+        chargeRequired: 15,
+        icon: '🔥'
+    },
+    {
+        id: 'h2',
+        name: 'Aquaria, a Sacerdotisa',
+        description: 'Guardiana das águas profundas, capaz de purificar o campo de batalha.',
+        element: 'water',
+        abilityName: 'Maré Alta',
+        abilityDescription: 'Remove todas as peças vermelhas.',
+        chargeRequired: 20,
+        icon: '💧'
+    },
+    {
+        id: 'h3',
+        name: 'Terrax, o Titã',
+        description: 'Uma força inamovível da natureza, sólido como a rocha.',
+        element: 'earth',
+        abilityName: 'Terremoto',
+        abilityDescription: 'Embaralha todo o tabuleiro.',
+        chargeRequired: 25,
+        icon: '🗿'
+    }
+];
 
 export const INITIAL_PARCELS: Parcel[] = [
   {

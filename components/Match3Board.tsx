@@ -1,12 +1,15 @@
 
-import React, { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Sparkles } from 'lucide-react';
 import { playSound } from '../utils/audio';
+import { Hero } from '../types';
+import { triggerVisualEffect } from '../utils/events';
 
 interface Match3BoardProps {
   moves: number;
   targetScore: number;
   difficulty: string;
+  hero: Hero | undefined;
   onComplete: (success: boolean, score: number) => void;
   onExit: () => void;
 }
@@ -99,8 +102,9 @@ const GemVisual = ({ type }: { type: number }) => {
 
 const GEM_COUNT = 5;
 
-export const Match3Board: React.FC<Match3BoardProps> = ({ moves: initialMoves, targetScore, difficulty, onComplete, onExit }) => {
+export const Match3Board: React.FC<Match3BoardProps> = ({ moves: initialMoves, targetScore, difficulty, hero, onComplete, onExit }) => {
   const [board, setBoard] = useState<number[][]>([]);
+  const boardRef = useRef<number[][]>([]); // Ref to hold the latest board state for async access
   const [selected, setSelected] = useState<{r: number, c: number} | null>(null);
   const [score, setScore] = useState(0);
   const [movesLeft, setMovesLeft] = useState(initialMoves);
@@ -108,6 +112,14 @@ export const Match3Board: React.FC<Match3BoardProps> = ({ moves: initialMoves, t
   const [matchedCells, setMatchedCells] = useState<string[]>([]);
   const [startScreen, setStartScreen] = useState(true);
   
+  // Hero Ability State
+  const [heroCharge, setHeroCharge] = useState(0);
+
+  // Update ref whenever board changes
+  useEffect(() => {
+      boardRef.current = board;
+  }, [board]);
+
   useEffect(() => {
     const newBoard = [];
     for(let r=0; r<ROWS; r++) {
@@ -136,6 +148,9 @@ export const Match3Board: React.FC<Match3BoardProps> = ({ moves: initialMoves, t
     
     if (isAdj) {
         setIsProcessing(true);
+        // Store previous state for revert
+        const prevBoard = JSON.parse(JSON.stringify(board));
+
         const temp = JSON.parse(JSON.stringify(board));
         const val = temp[selected.r][selected.c];
         temp[selected.r][selected.c] = temp[r][c];
@@ -146,11 +161,18 @@ export const Match3Board: React.FC<Match3BoardProps> = ({ moves: initialMoves, t
 
         await new Promise(r => setTimeout(r, 300));
         
+        await processBoard(temp, true, prevBoard);
+    } else {
+        setSelected({r, c});
+    }
+  };
+
+  const processBoard = async (currentBoard: number[][], decrementMove: boolean, prevBoardToRevert?: number[][]) => {
         const matches = new Set<string>();
         // Hrz
         for(let i=0; i<ROWS; i++) {
             for(let j=0; j<COLS-2; j++) {
-                if(temp[i][j] === temp[i][j+1] && temp[i][j] === temp[i][j+2]) {
+                if(currentBoard[i][j] !== -1 && currentBoard[i][j] === currentBoard[i][j+1] && currentBoard[i][j] === currentBoard[i][j+2]) {
                     matches.add(`${i},${j}`); matches.add(`${i},${j+1}`); matches.add(`${i},${j+2}`);
                 }
             }
@@ -158,27 +180,114 @@ export const Match3Board: React.FC<Match3BoardProps> = ({ moves: initialMoves, t
         // Vert
         for(let j=0; j<COLS; j++) {
             for(let i=0; i<ROWS-2; i++) {
-                if(temp[i][j] === temp[i+1][j] && temp[i][j] === temp[i+2][j]) {
+                if(currentBoard[i][j] !== -1 && currentBoard[i][j] === currentBoard[i+1][j] && currentBoard[i][j] === currentBoard[i+2][j]) {
                     matches.add(`${i},${j}`); matches.add(`${i+1},${j}`); matches.add(`${i+2},${j}`);
                 }
             }
         }
 
         if (matches.size > 0) {
-            setMovesLeft(m => m - 1);
+            if (decrementMove) setMovesLeft(m => m - 1);
             playSound('merge');
             setMatchedCells(Array.from(matches));
+
+            // Charge Hero
+            if (hero) {
+                setHeroCharge(prev => Math.min(hero.chargeRequired, prev + matches.size));
+            }
+
             await new Promise(r => setTimeout(r, 400));
             
             matches.forEach(key => {
                 const [rr, cc] = key.split(',').map(Number);
-                temp[rr][cc] = -1;
+                currentBoard[rr][cc] = -1;
             });
             
             setScore(s => s + (matches.size * 100));
             setMatchedCells([]);
 
+            // Drop
             for(let j=0; j<COLS; j++) {
+                let empty = 0;
+                for(let i=ROWS-1; i>=0; i--) {
+                    if(currentBoard[i][j] === -1) empty++;
+                    else if(empty > 0) {
+                        currentBoard[i+empty][j] = currentBoard[i][j];
+                        currentBoard[i][j] = -1;
+                    }
+                }
+                for(let i=0; i<empty; i++) currentBoard[i][j] = Math.floor(Math.random() * GEM_COUNT);
+            }
+            setBoard([...currentBoard]);
+
+            // Chain reactions?
+            // await new Promise(r => setTimeout(r, 300));
+            // await processBoard(currentBoard, false);
+
+            setIsProcessing(false);
+        } else {
+            if (decrementMove && prevBoardToRevert) {
+                 // Invalid move, swap back
+                 playSound('error');
+                 setBoard(prevBoardToRevert);
+                 // We don't process further if it was a revert
+            }
+            setIsProcessing(false);
+        }
+  };
+
+  const activateHeroAbility = () => {
+      if (!hero || heroCharge < hero.chargeRequired || isProcessing) return;
+
+      setIsProcessing(true);
+      playSound('magic');
+      triggerVisualEffect('HERO_SUMMON', { x: window.innerWidth/2, y: window.innerHeight/2 });
+
+      setHeroCharge(0); // Reset charge
+
+      setTimeout(async () => {
+          // Use Ref to get the LATEST board state, preventing race conditions or stale closures
+          const temp = JSON.parse(JSON.stringify(boardRef.current));
+
+          if (hero.element === 'fire') {
+              // Destroy random 3x3
+              const r = Math.floor(Math.random() * (ROWS - 2)) + 1;
+              const c = Math.floor(Math.random() * (COLS - 2)) + 1;
+
+              for(let i = r-1; i <= r+1; i++) {
+                  for(let j = c-1; j <= c+1; j++) {
+                      if (temp[i] && temp[i][j] !== undefined) temp[i][j] = -1;
+                  }
+              }
+              setScore(s => s + 500);
+          } else if (hero.element === 'water') {
+               // Remove all red gems (0)
+               for(let i=0; i<ROWS; i++) {
+                   for(let j=0; j<COLS; j++) {
+                       if (temp[i][j] === 0) {
+                           temp[i][j] = -1;
+                           setScore(s => s + 50);
+                       }
+                   }
+               }
+          } else if (hero.element === 'earth') {
+              // Shuffle
+               for(let i=0; i<ROWS; i++) {
+                   for(let j=0; j<COLS; j++) {
+                        const r2 = Math.floor(Math.random() * ROWS);
+                        const c2 = Math.floor(Math.random() * COLS);
+                        const t = temp[i][j];
+                        temp[i][j] = temp[r2][c2];
+                        temp[r2][c2] = t;
+                   }
+               }
+          }
+
+          setBoard(temp);
+          await new Promise(r => setTimeout(r, 500));
+
+          // Drop mechanics for ability
+          for(let j=0; j<COLS; j++) {
                 let empty = 0;
                 for(let i=ROWS-1; i>=0; i--) {
                     if(temp[i][j] === -1) empty++;
@@ -188,21 +297,15 @@ export const Match3Board: React.FC<Match3BoardProps> = ({ moves: initialMoves, t
                     }
                 }
                 for(let i=0; i<empty; i++) temp[i][j] = Math.floor(Math.random() * GEM_COUNT);
-            }
-            setBoard(temp);
-        } else {
-            const revert = JSON.parse(JSON.stringify(board));
-            setBoard(revert);
-            playSound('error');
-        }
-        setIsProcessing(false);
-    } else {
-        setSelected({r, c});
-    }
+          }
+          setBoard(temp);
+          setIsProcessing(false);
+
+      }, 1000);
   };
 
   useEffect(() => {
-      if (!startScreen && (movesLeft === 0 || score >= targetScore)) {
+      if (!startScreen && (movesLeft <= 0 || score >= targetScore)) {
           setTimeout(() => {
               onComplete(score >= targetScore, score);
           }, 1000);
@@ -214,32 +317,50 @@ export const Match3Board: React.FC<Match3BoardProps> = ({ moves: initialMoves, t
         
         <div className="w-full h-full max-w-md flex flex-col relative bg-slate-900 bg-[url('https://www.transparenttextures.com/patterns/dark-matter.png')]">
             
-            <div className="h-24 bg-slate-900/95 border-b-4 border-amber-600 flex items-center justify-between px-4 shadow-2xl z-20 pt-2">
-                <div className="flex flex-col">
+            <div className="h-28 bg-slate-900/95 border-b-4 border-amber-600 flex items-center justify-between px-4 shadow-2xl z-20 pt-2 pb-2">
+                <div className="flex flex-col gap-1">
                     <span className="text-amber-500 font-bold text-[10px] uppercase tracking-widest mb-1">Pontuação</span>
                     <div className="flex items-baseline gap-1">
                         <span className="text-3xl font-black text-white font-[Cinzel] drop-shadow-lg">{score}</span>
-                        <span className="text-xs text-slate-500 font-bold">/ {targetScore}</span>
+                    </div>
+                    <div className="w-32 h-2 bg-slate-800 rounded-full border border-slate-700 overflow-hidden">
+                        <div className="h-full bg-amber-500" style={{width: `${Math.min(100, (score/targetScore)*100)}%`}}></div>
                     </div>
                 </div>
                 
-                <div className="flex flex-col items-center bg-slate-800 p-2 rounded-xl border border-slate-700">
+                {/* HERO ABILITY BUTTON */}
+                {hero && (
+                    <div className="flex flex-col items-center">
+                         <button
+                            disabled={heroCharge < hero.chargeRequired || isProcessing}
+                            onClick={activateHeroAbility}
+                            className={`
+                                w-14 h-14 rounded-full border-4 flex items-center justify-center relative transition-all duration-300
+                                ${heroCharge >= hero.chargeRequired
+                                    ? 'border-blue-400 bg-blue-600 shadow-[0_0_20px_rgba(59,130,246,0.8)] animate-pulse scale-110'
+                                    : 'border-slate-600 bg-slate-800 opacity-80'
+                                }
+                            `}
+                         >
+                            <div className="absolute inset-0 rounded-full overflow-hidden" style={{ clipPath: `inset(${100 - (heroCharge/hero.chargeRequired)*100}% 0 0 0)` }}>
+                                <div className="w-full h-full bg-blue-500/50"></div>
+                            </div>
+                            <span className="text-2xl relative z-10">{hero.icon}</span>
+                         </button>
+                         <span className="text-[9px] font-black text-blue-300 mt-1 uppercase tracking-tighter">
+                             {heroCharge >= hero.chargeRequired ? 'PRONTO!' : `${heroCharge}/${hero.chargeRequired}`}
+                         </span>
+                    </div>
+                )}
+
+                <div className="flex flex-col items-center bg-slate-800 p-2 rounded-xl border border-slate-700 w-16">
                     <span className="text-blue-400 font-bold text-[10px] uppercase tracking-widest">Moves</span>
                     <span className={`text-2xl font-black ${movesLeft < 5 ? 'text-red-500 animate-pulse' : 'text-white'}`}>{movesLeft}</span>
                 </div>
-
-                <button onClick={onExit} className="bg-red-900/30 p-2 rounded-full border border-red-500/50 text-red-300 hover:bg-red-900">
-                    <X size={20} />
-                </button>
             </div>
 
             <div className="flex-1 flex flex-col items-center justify-center p-2 relative overflow-hidden">
                 
-                {/* Progress Bar */}
-                <div className="absolute top-2 left-4 right-4 h-3 bg-slate-950 rounded-full border border-slate-800 overflow-hidden shadow-inner z-10">
-                    <div className="h-full bg-gradient-to-r from-amber-600 to-yellow-400 transition-all duration-500 shadow-[0_0_10px_rgba(251,191,36,0.5)]" style={{width: `${Math.min(100, (score/targetScore)*100)}%`}}></div>
-                </div>
-
                 {startScreen ? (
                     <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-black/70 backdrop-blur-md animate-in fade-in duration-300">
                          <div className="text-6xl mb-4 animate-bounce">⚔️</div>
@@ -247,7 +368,15 @@ export const Match3Board: React.FC<Match3BoardProps> = ({ moves: initialMoves, t
                          <div className="bg-slate-800/80 p-6 rounded-2xl border border-slate-600 text-center max-w-[80%] mb-8">
                             <p className="text-slate-300 text-sm mb-2 uppercase tracking-widest font-bold">Objetivo</p>
                             <p className="text-white text-2xl font-black mb-4">{targetScore} Pontos</p>
-                            <p className="text-slate-400 text-xs">Combine 3 ou mais joias para atacar o inimigo!</p>
+                            {hero && (
+                                <div className="border-t border-slate-600 pt-4 mt-2">
+                                    <p className="text-slate-400 text-xs mb-1">Herói Selecionado</p>
+                                    <div className="flex items-center justify-center gap-2 text-blue-300 font-bold">
+                                        <span>{hero.icon}</span>
+                                        <span>{hero.name}</span>
+                                    </div>
+                                </div>
+                            )}
                          </div>
                          <button onClick={() => setStartScreen(false)} className="btn-game red px-10 py-4 text-xl font-bold shadow-[0_0_30px_rgba(220,38,38,0.4)] animate-pulse">
                             LUTAR
@@ -255,7 +384,7 @@ export const Match3Board: React.FC<Match3BoardProps> = ({ moves: initialMoves, t
                     </div>
                 ) : (
                     <div 
-                        className="grid gap-1.5 p-3 bg-slate-900/40 rounded-2xl border-2 border-slate-700/50 backdrop-blur-sm mt-6"
+                        className="grid gap-1.5 p-3 bg-slate-900/40 rounded-2xl border-2 border-slate-700/50 backdrop-blur-sm mt-2"
                         style={{ gridTemplateColumns: `repeat(${COLS}, 1fr)`, width: '100%', maxWidth: '400px', aspectRatio: `${COLS}/${ROWS}` }}
                     >
                         {board.map((row, r) => row.map((type, c) => (
@@ -276,6 +405,11 @@ export const Match3Board: React.FC<Match3BoardProps> = ({ moves: initialMoves, t
                     </div>
                 )}
             </div>
+
+            <button onClick={onExit} className="absolute top-2 right-2 z-50 bg-red-900/50 p-2 rounded-full border border-red-500/50 text-red-300 hover:bg-red-900">
+                <X size={16} />
+            </button>
+
         </div>
     </div>
   );

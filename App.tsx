@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { GameTab, GridSlot, PlayerState, GameItem, ItemType, Parcel, Mission } from './types';
-import { GRID_SIZE, INITIAL_PARCELS, MAX_ITEM_LEVEL, ITEM_DEFINITIONS } from './constants';
+import { GameTab, GridSlot, PlayerState, GameItem, ItemType, Parcel, Mission, Hero } from './types';
+import { GRID_SIZE, INITIAL_PARCELS, MAX_ITEM_LEVEL, ITEM_DEFINITIONS, INITIAL_HEROES } from './constants';
 import { MergeGrid } from './components/MergeGrid';
 import { KingdomMap } from './components/KingdomMap';
 import { AdventureMap } from './components/AdventureMap';
@@ -16,8 +16,9 @@ import { VisualEffects } from './components/VisualEffects';
 import { IntroVideo } from './components/IntroVideo';
 import { DailyBonusModal } from './components/DailyBonusModal';
 import { ParallaxBackground } from './components/ParallaxBackground';
+import { HeroesModal } from './components/HeroesModal';
 // Added Flame to imports
-import { Zap, Coins, Map, Grid as GridIcon, Sword, Plus, Clock, LogOut, Sun, Moon, Flame } from 'lucide-react';
+import { Zap, Coins, Map, Grid as GridIcon, Sword, Plus, Clock, LogOut, Sun, Moon, Flame, User } from 'lucide-react';
 import { playSound } from './utils/audio';
 import { auth, loginWithGoogle, logout, getMockSession, updateUserProfile, MOCK_SESSION_KEY } from './utils/firebase';
 import { triggerVisualEffect } from './utils/events';
@@ -43,12 +44,17 @@ const App: React.FC = () => {
   const [showProfile, setShowProfile] = useState(false);
   const [showIntroVideo, setShowIntroVideo] = useState(false);
   const [showDailyBonus, setShowDailyBonus] = useState(false);
+  const [showHeroes, setShowHeroes] = useState(false);
   
   // Battle State
   const [activeMission, setActiveMission] = useState<Mission | null>(null);
   const [showBattleTransition, setShowBattleTransition] = useState(false);
   const [missions, setMissions] = useState<Mission[]>([]);
   
+  // Heroes State
+  const [unlockedHeroes, setUnlockedHeroes] = useState<Hero[]>(INITIAL_HEROES);
+  const [selectedHeroId, setSelectedHeroId] = useState<string>('h1');
+
   // User Customization
   const [avatarFrame, setAvatarFrame] = useState('default');
   const [loginStreak, setLoginStreak] = useState(1);
@@ -263,6 +269,7 @@ const App: React.FC = () => {
           grid, 
           parcels, 
           avatarFrame,
+          selectedHeroId,
           timestamp: Date.now() 
       };
       localStorage.setItem(`save_rmk_${user.uid}`, JSON.stringify(saveData));
@@ -277,6 +284,7 @@ const App: React.FC = () => {
               setGrid(data.grid);
               setParcels(data.parcels);
               if (data.avatarFrame) setAvatarFrame(data.avatarFrame);
+              if (data.selectedHeroId) setSelectedHeroId(data.selectedHeroId);
           } catch (e) {
               console.error("Erro no load:", e);
           }
@@ -294,7 +302,7 @@ const App: React.FC = () => {
           const timer = setTimeout(saveGameData, 1000);
           return () => clearTimeout(timer);
       }
-  }, [player, grid, parcels, avatarFrame, user, gameState]);
+  }, [player, grid, parcels, avatarFrame, selectedHeroId, user, gameState]);
 
 
   // --- XP & Level Up ---
@@ -571,6 +579,16 @@ const App: React.FC = () => {
           onClose={() => setShowDailyBonus(false)}
         />
       )}
+
+      {/* Heroes Modal */}
+      {showHeroes && (
+        <HeroesModal
+            unlockedHeroes={unlockedHeroes}
+            selectedHeroId={selectedHeroId}
+            onSelectHero={(id) => setSelectedHeroId(id)}
+            onClose={() => setShowHeroes(false)}
+        />
+      )}
       
       {/* Shake Wrapper */}
       <div className={`screen-shaker ${isShaking ? 'is-shaking' : ''}`}>
@@ -594,6 +612,7 @@ const App: React.FC = () => {
                moves={activeMission.moves}
                targetScore={activeMission.targetScore}
                difficulty={activeMission.difficulty}
+               hero={unlockedHeroes.find(h => h.id === selectedHeroId)}
                onComplete={handleMatch3Complete}
                onExit={() => setActiveMission(null)}
             />
@@ -739,10 +758,18 @@ const App: React.FC = () => {
                   </button>
               </div>
 
-              <button onClick={() => {playSound('pop'); setActiveTab('adventure')}} className={`flex flex-col items-center gap-1 transition-all duration-300 ${activeTab === 'adventure' ? 'scale-110 text-red-400 drop-shadow-[0_0_15px_rgba(248,113,113,0.6)] -translate-y-2' : 'text-slate-500 hover:text-slate-300'}`}>
-                  <Sword className="w-6 h-6" strokeWidth={2.5} />
-                  <span className="text-[9px] font-black uppercase tracking-widest">Batalha</span>
-              </button>
+              <div className="flex gap-4">
+                  <button onClick={() => {playSound('pop'); setActiveTab('adventure')}} className={`flex flex-col items-center gap-1 transition-all duration-300 ${activeTab === 'adventure' ? 'scale-110 text-red-400 drop-shadow-[0_0_15px_rgba(248,113,113,0.6)] -translate-y-2' : 'text-slate-500 hover:text-slate-300'}`}>
+                      <Sword className="w-6 h-6" strokeWidth={2.5} />
+                      <span className="text-[9px] font-black uppercase tracking-widest">Batalha</span>
+                  </button>
+
+                  {/* HERO BUTTON */}
+                  <button onClick={() => {playSound('pop'); setShowHeroes(true)}} className={`flex flex-col items-center gap-1 transition-all duration-300 text-slate-500 hover:text-slate-300`}>
+                      <User className="w-6 h-6" strokeWidth={2.5} />
+                      <span className="text-[9px] font-black uppercase tracking-widest">Heróis</span>
+                  </button>
+              </div>
            </div>
         </div>
 
