@@ -396,8 +396,12 @@ const App: React.FC = () => {
     };
 
     setGrid(prev => {
+      // Re-verify the slot is still empty in the latest state
+      const safeIndex = prev[emptySlotIndex].item === null ? emptySlotIndex : prev.findIndex(s => s.item === null);
+      if (safeIndex === -1) return prev;
+
       const newGrid = [...prev];
-      newGrid[emptySlotIndex].item = newItem;
+      newGrid[safeIndex] = { ...newGrid[safeIndex], item: newItem };
       return newGrid;
     });
     playSound('pop');
@@ -405,47 +409,43 @@ const App: React.FC = () => {
   };
 
   const handleMerge = async (fromIndex: number, toIndex: number) => {
-    const fromSlot = grid[fromIndex];
-    const toSlot = grid[toIndex];
-
-    if (!fromSlot.item) return;
-
-    // Store lore locally to avoid overwriting grid state async mess
-    let generatedLore = ""; 
+    if (!grid[fromIndex].item) return;
 
     setGrid(prev => {
       const newGrid = [...prev];
+      const sourceSlot = newGrid[fromIndex];
+      const targetSlot = newGrid[toIndex];
 
-      // Case 1: Move
-      if (!toSlot.item) {
-        newGrid[toIndex].item = fromSlot.item;
-        newGrid[fromIndex].item = null;
+      // Item might have been moved/consumed by another event
+      if (!sourceSlot.item) return prev;
+
+      // Case 1: Move (target empty)
+      if (!targetSlot.item) {
+        newGrid[toIndex] = { ...targetSlot, item: sourceSlot.item };
+        newGrid[fromIndex] = { ...sourceSlot, item: null };
         return newGrid;
       }
 
       // Case 2: Merge
-      if (toSlot.item && 
-          toSlot.item.type === fromSlot.item.type && 
-          toSlot.item.level === fromSlot.item.level &&
-          toSlot.item.level < MAX_ITEM_LEVEL
+      if (targetSlot.item.type === sourceSlot.item.type &&
+          targetSlot.item.level === sourceSlot.item.level &&
+          targetSlot.item.level < MAX_ITEM_LEVEL
       ) {
-        const newLevel = toSlot.item.level + 1;
+        const newLevel = targetSlot.item.level + 1;
         
         const newItem: GameItem = {
-          ...toSlot.item,
+          ...targetSlot.item,
           id: Math.random().toString(36).substr(2, 9),
           level: newLevel,
           isNew: true,
           effectType: 'merge'
         };
         
-        newGrid[toIndex].item = newItem;
-        newGrid[fromIndex].item = null;
+        newGrid[toIndex] = { ...targetSlot, item: newItem };
+        newGrid[fromIndex] = { ...sourceSlot, item: null };
         
         // Prepare to generate lore async
         if (newLevel >= 5) {
-             // We will trigger this effect separately to update the grid later
-             // to keep UI responsive
              generateItemLore(newItem.type, newLevel).then(lore => {
                  setGrid(curr => curr.map(s => 
                      (s.item && s.item.id === newItem.id) ? { ...s, item: { ...s.item!, lore } } : s
@@ -459,22 +459,31 @@ const App: React.FC = () => {
       }
 
       // Case 3: Swap
-      const temp = newGrid[toIndex].item;
-      newGrid[toIndex].item = newGrid[fromIndex].item;
-      newGrid[fromIndex].item = temp;
+      const tempItem = targetSlot.item;
+      newGrid[toIndex] = { ...targetSlot, item: sourceSlot.item };
+      newGrid[fromIndex] = { ...sourceSlot, item: tempItem };
       playSound('pop');
       return newGrid;
     });
   };
 
   const handleSell = (index: number) => {
-    const item = grid[index].item;
-    if (!item) return;
-    const value = Math.floor(ITEM_DEFINITIONS[item.type].baseValue * Math.pow(2, item.level - 1));
-    setPlayer(prev => ({ ...prev, gold: prev.gold + value, xp: prev.xp + 5 }));
+    // We should re-check item existence inside updater, but for calculation we need it now.
+    // However, if we calculate price based on stale item, it's a minor exploit/bug risk.
+    // Better to just queue the update.
+
     setGrid(prev => {
+      const slot = prev[index];
+      if (!slot.item) return prev;
+
+      const item = slot.item;
+      const value = Math.floor(ITEM_DEFINITIONS[item.type].baseValue * Math.pow(2, item.level - 1));
+
+      // Side effect in reducer is not ideal but needed for synchronous feedback loop in this architecture
+      setPlayer(p => ({ ...p, gold: p.gold + value, xp: p.xp + 5 }));
+
       const newGrid = [...prev];
-      newGrid[index].item = null;
+      newGrid[index] = { ...slot, item: null };
       return newGrid;
     });
   };
@@ -508,7 +517,8 @@ const App: React.FC = () => {
       setGrid(prev => {
         const next = [...prev];
         itemsToConsume.forEach(idx => {
-          next[idx].item = null;
+          // Immutable update
+          next[idx] = { ...next[idx], item: null };
         });
         return next;
       });
