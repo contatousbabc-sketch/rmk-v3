@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>Royal Merge Kingdom</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Cinzel+Decorative:wght@700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
+    <style>
+      :root {
+        --gold-gradient: linear-gradient(180deg, #fbbf24 0%, #d97706 50%, #78350f 100%);
+        --wood-gradient: linear-gradient(180deg, #78350f 0%, #451a03 100%);
+      }
+
+      body {
+        font-family: 'Nunito', sans-serif;
+        background-color: #020617;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: none;
+      }
+
+      /* Global Noise Overlay for Texture */
+      .noise-overlay {
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        pointer-events: none;
+        z-index: 90;
+        opacity: 0.05;
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+      }
+
+      h1, h2, h3, .fantasy-font {
+        font-family: 'Cinzel Decorative', cursive;
+      }
+
+      .app-container {
+        height: 100dvh;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        background-color: #0f172a;
+        position: relative;
+      }
+
+      /* Screen Shake Container */
+      .screen-shaker {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        transition: transform 0.05s;
+      }
+      
+      .is-shaking {
+        animation: shake-hard 0.4s cubic-bezier(.36,.07,.19,.97) both;
+      }
+
+      @keyframes shake-hard {
+        10%, 90% { transform: translate3d(-2px, 1px, 0) rotate(-1deg); }
+        20%, 80% { transform: translate3d(4px, -2px, 0) rotate(2deg); }
+        30%, 50%, 70% { transform: translate3d(-6px, 4px, 0) rotate(-2deg); }
+        40%, 60% { transform: translate3d(6px, -4px, 0) rotate(2deg); }
+      }
+
+      /* Epic Animated Background */
+      .bg-animated-gradient {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at 50% 120%, #312e81, #020617 60%, #000000);
+        z-index: 0;
+        overflow: hidden;
+      }
+      
+      .scroll-content {
+        flex: 1;
+        overflow-y: auto;
+        overflow-x: hidden;
+        overscroll-behavior-y: contain;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 100px;
+        z-index: 1;
+        padding-top: 10px;
+        position: relative;
+      }
+
+      .scroll-content::-webkit-scrollbar { width: 0px; }
+
+      /* --- JUICY UI ELEMENTS --- */
+      
+      .gold-frame {
+        position: relative;
+        background: rgba(15, 23, 42, 0.95);
+        border: 2px solid #b45309;
+        border-radius: 16px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.8), inset 0 0 20px rgba(0,0,0,0.8);
+      }
+
+      .btn-game {
+        border: none;
+        border-bottom: 6px solid rgba(0,0,0,0.3);
+        border-radius: 16px;
+        color: white;
+        font-family: 'Cinzel Decorative', cursive;
+        text-shadow: 0 2px 0 rgba(0,0,0,0.5);
+        transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+      
+      .btn-game:active {
+        transform: translateY(4px);
+        border-bottom-width: 2px;
+        filter: brightness(0.9);
+      }
+
+      .btn-game.blue { background: linear-gradient(to bottom, #3b82f6, #1d4ed8); border-color: #172554; }
+      .btn-game.red { background: linear-gradient(to bottom, #ef4444, #b91c1c); border-color: #450a0a; }
+      .btn-game.white { background: linear-gradient(to bottom, #ffffff, #cbd5e1); color: #0f172a; border-color: #64748b; text-shadow: none; }
+
+      /* Animations */
+      @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-12px); } }
+      .animate-float { animation: float 5s ease-in-out infinite; }
+      
+      @keyframes pulse-glow {
+        0%, 100% { opacity: 0.3; transform: scale(1); }
+        50% { opacity: 0.6; transform: scale(1.2); }
+      }
+      .animate-pulse-glow { animation: pulse-glow 3s infinite; }
+
+      /* Merge Pop Animation - More Explosive */
+      @keyframes mergeExplode {
+        0% { transform: scale(1); filter: brightness(1); }
+        40% { transform: scale(1.4); filter: brightness(5) hue-rotate(-30deg); }
+        100% { transform: scale(1); filter: brightness(1); }
+      }
+      .animate-merge { animation: mergeExplode 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+
+      @keyframes popIn {
+        0% { transform: scale(0); }
+        70% { transform: scale(1.2); }
+        100% { transform: scale(1); }
+      }
+      .animate-pop-in { animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+
+      .glass-panel {
+          background: rgba(15, 23, 42, 0.7);
+          backdrop-filter: blur(16px);
+          -webkit-backdrop-filter: blur(16px);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.2.0",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+    "react-dom": "https://esm.sh/react-dom@18.2.0",
+    "lucide-react": "https://esm.sh/lucide-react@0.344.0",
+    "firebase/app": "https://esm.sh/firebase@10.8.0/app",
+    "firebase/auth": "https://esm.sh/firebase@10.8.0/auth",
+    "@google/genai": "https://esm.sh/@google/genai@0.1.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+    <div class="noise-overlay"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
