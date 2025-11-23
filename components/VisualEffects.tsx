@@ -44,6 +44,7 @@ export const VisualEffects: React.FC = () => {
       const angle = Math.random() * Math.PI * 2;
       const speed = options.speed || Math.random() * 5 + 2;
       
+      // Updated vibrant colors
       let color = options.color || '#fff';
       let size = options.size || Math.random() * 4 + 2;
       let gravity = 0.2;
@@ -51,7 +52,7 @@ export const VisualEffects: React.FC = () => {
       let alpha = 1;
       
       if (type === 'coin') {
-          color = '#FFD700';
+          color = '#fbbf24'; // Lighter Gold
           size = 12;
           gravity = 0.8;
           life = 100;
@@ -67,7 +68,7 @@ export const VisualEffects: React.FC = () => {
           life = 20;
           gravity = 0;
           size = Math.random() * 4 + 2;
-          color = options.color || 'rgba(255, 215, 0, 0.5)';
+          color = options.color || 'rgba(251, 191, 36, 0.5)';
       } else if (type === 'shockwave') {
           life = 30;
           gravity = 0;
@@ -107,7 +108,7 @@ export const VisualEffects: React.FC = () => {
 
         if (type === 'MERGE_EXPLOSION') {
             // Shockwave
-            particlesRef.current.push(createParticle('shockwave', x, y, { color: color || '#FFD700' }));
+            particlesRef.current.push(createParticle('shockwave', x, y, { color: color || '#f472b6' })); // Pink shockwave
             
             // Sparkles
             for (let i = 0; i < 30; i++) {
@@ -118,12 +119,12 @@ export const VisualEffects: React.FC = () => {
             }
         } else if (type === 'HERO_SUMMON') {
              // Big beam
-             particlesRef.current.push(createParticle('beam', x, window.innerHeight, { color: '#fbbf24', width: 100 }));
+             particlesRef.current.push(createParticle('beam', x, window.innerHeight, { color: '#f59e0b', width: 150 }));
 
              // Fireworks
              setTimeout(() => {
-                 const colors = ['#f59e0b', '#fbbf24', '#ffffff'];
-                 for (let i = 0; i < 100; i++) {
+                 const colors = ['#f59e0b', '#fbbf24', '#a855f7', '#ec4899']; // Gold, Purple, Pink
+                 for (let i = 0; i < 120; i++) {
                      particlesRef.current.push(createParticle('firework', x, y, {
                          color: colors[Math.floor(Math.random() * colors.length)],
                          speed: Math.random() * 15 + 5
@@ -134,10 +135,9 @@ export const VisualEffects: React.FC = () => {
         } else if (type === 'SHOCKWAVE') {
              particlesRef.current.push(createParticle('shockwave', x, y, { color: color || '#fff' }));
         } else if (type === 'DRAG_TRAIL') {
-             // Emit fewer particles for trails to save perf
              if (Math.random() > 0.4) {
                  particlesRef.current.push(createParticle('trail', x, y, { 
-                     color: color,
+                     color: color || '#fcd34d',
                      speed: 0.5 
                  }));
              }
@@ -151,7 +151,7 @@ export const VisualEffects: React.FC = () => {
                  }, i * 50);
              }
         } else if (type === 'CONFETTI') {
-             const colors = ['#ef4444', '#22c55e', '#3b82f6', '#eab308', '#a855f7', '#ec4899'];
+             const colors = ['#ef4444', '#22c55e', '#3b82f6', '#eab308', '#a855f7', '#ec4899', '#06b6d4']; // Added Cyan
              for (let i = 0; i < 80; i++) {
                  particlesRef.current.push(createParticle('confetti', canvas.width/2, canvas.height/2, {
                      color: colors[Math.floor(Math.random() * colors.length)],
