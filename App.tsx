@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { GameTab, GridSlot, PlayerState, GameItem, ItemType, Parcel, Mission } from './types';
-import { GRID_SIZE, INITIAL_PARCELS, MAX_ITEM_LEVEL, ITEM_DEFINITIONS } from './constants';
+import { GameTab, GridSlot, PlayerState, GameItem, ItemType, Parcel, Mission, Hero } from './types';
+import { GRID_SIZE, INITIAL_PARCELS, MAX_ITEM_LEVEL, ITEM_DEFINITIONS, INITIAL_HEROES } from './constants';
 import { MergeGrid } from './components/MergeGrid';
 import { KingdomMap } from './components/KingdomMap';
 import { AdventureMap } from './components/AdventureMap';
@@ -16,8 +16,9 @@ import { VisualEffects } from './components/VisualEffects';
 import { IntroVideo } from './components/IntroVideo';
 import { DailyBonusModal } from './components/DailyBonusModal';
 import { ParallaxBackground } from './components/ParallaxBackground';
+import { HeroesModal } from './components/HeroesModal';
 // Added Flame to imports
-import { Zap, Coins, Map, Grid as GridIcon, Sword, Plus, Clock, LogOut, Sun, Moon, Flame } from 'lucide-react';
+import { Zap, Coins, Map, Grid as GridIcon, Sword, Plus, Clock, LogOut, Sun, Moon, Flame, User } from 'lucide-react';
 import { playSound } from './utils/audio';
 import { auth, loginWithGoogle, logout, getMockSession, updateUserProfile, MOCK_SESSION_KEY } from './utils/firebase';
 import { triggerVisualEffect } from './utils/events';
@@ -43,12 +44,17 @@ const App: React.FC = () => {
   const [showProfile, setShowProfile] = useState(false);
   const [showIntroVideo, setShowIntroVideo] = useState(false);
   const [showDailyBonus, setShowDailyBonus] = useState(false);
+  const [showHeroes, setShowHeroes] = useState(false);
   
   // Battle State
   const [activeMission, setActiveMission] = useState<Mission | null>(null);
   const [showBattleTransition, setShowBattleTransition] = useState(false);
   const [missions, setMissions] = useState<Mission[]>([]);
   
+  // Heroes State
+  const [unlockedHeroes, setUnlockedHeroes] = useState<Hero[]>(INITIAL_HEROES);
+  const [selectedHeroId, setSelectedHeroId] = useState<string>('h1');
+
   // User Customization
   const [avatarFrame, setAvatarFrame] = useState('default');
   const [loginStreak, setLoginStreak] = useState(1);
@@ -263,6 +269,7 @@ const App: React.FC = () => {
           grid, 
           parcels, 
           avatarFrame,
+          selectedHeroId,
           timestamp: Date.now() 
       };
       localStorage.setItem(`save_rmk_${user.uid}`, JSON.stringify(saveData));
@@ -277,6 +284,7 @@ const App: React.FC = () => {
               setGrid(data.grid);
               setParcels(data.parcels);
               if (data.avatarFrame) setAvatarFrame(data.avatarFrame);
+              if (data.selectedHeroId) setSelectedHeroId(data.selectedHeroId);
           } catch (e) {
               console.error("Erro no load:", e);
           }
@@ -294,7 +302,7 @@ const App: React.FC = () => {
           const timer = setTimeout(saveGameData, 1000);
           return () => clearTimeout(timer);
       }
-  }, [player, grid, parcels, avatarFrame, user, gameState]);
+  }, [player, grid, parcels, avatarFrame, selectedHeroId, user, gameState]);
 
 
   // --- XP & Level Up ---
@@ -388,8 +396,12 @@ const App: React.FC = () => {
     };
 
     setGrid(prev => {
+      // Re-verify the slot is still empty in the latest state
+      const safeIndex = prev[emptySlotIndex].item === null ? emptySlotIndex : prev.findIndex(s => s.item === null);
+      if (safeIndex === -1) return prev;
+
       const newGrid = [...prev];
-      newGrid[emptySlotIndex].item = newItem;
+      newGrid[safeIndex] = { ...newGrid[safeIndex], item: newItem };
       return newGrid;
     });
     playSound('pop');
@@ -397,47 +409,43 @@ const App: React.FC = () => {
   };
 
   const handleMerge = async (fromIndex: number, toIndex: number) => {
-    const fromSlot = grid[fromIndex];
-    const toSlot = grid[toIndex];
-
-    if (!fromSlot.item) return;
-
-    // Store lore locally to avoid overwriting grid state async mess
-    let generatedLore = ""; 
+    if (!grid[fromIndex].item) return;
 
     setGrid(prev => {
       const newGrid = [...prev];
+      const sourceSlot = newGrid[fromIndex];
+      const targetSlot = newGrid[toIndex];
 
-      // Case 1: Move
-      if (!toSlot.item) {
-        newGrid[toIndex].item = fromSlot.item;
-        newGrid[fromIndex].item = null;
+      // Item might have been moved/consumed by another event
+      if (!sourceSlot.item) return prev;
+
+      // Case 1: Move (target empty)
+      if (!targetSlot.item) {
+        newGrid[toIndex] = { ...targetSlot, item: sourceSlot.item };
+        newGrid[fromIndex] = { ...sourceSlot, item: null };
         return newGrid;
       }
 
       // Case 2: Merge
-      if (toSlot.item && 
-          toSlot.item.type === fromSlot.item.type && 
-          toSlot.item.level === fromSlot.item.level &&
-          toSlot.item.level < MAX_ITEM_LEVEL
+      if (targetSlot.item.type === sourceSlot.item.type &&
+          targetSlot.item.level === sourceSlot.item.level &&
+          targetSlot.item.level < MAX_ITEM_LEVEL
       ) {
-        const newLevel = toSlot.item.level + 1;
+        const newLevel = targetSlot.item.level + 1;
         
         const newItem: GameItem = {
-          ...toSlot.item,
+          ...targetSlot.item,
           id: Math.random().toString(36).substr(2, 9),
           level: newLevel,
           isNew: true,
           effectType: 'merge'
         };
         
-        newGrid[toIndex].item = newItem;
-        newGrid[fromIndex].item = null;
+        newGrid[toIndex] = { ...targetSlot, item: newItem };
+        newGrid[fromIndex] = { ...sourceSlot, item: null };
         
         // Prepare to generate lore async
         if (newLevel >= 5) {
-             // We will trigger this effect separately to update the grid later
-             // to keep UI responsive
              generateItemLore(newItem.type, newLevel).then(lore => {
                  setGrid(curr => curr.map(s => 
                      (s.item && s.item.id === newItem.id) ? { ...s, item: { ...s.item!, lore } } : s
@@ -451,22 +459,31 @@ const App: React.FC = () => {
       }
 
       // Case 3: Swap
-      const temp = newGrid[toIndex].item;
-      newGrid[toIndex].item = newGrid[fromIndex].item;
-      newGrid[fromIndex].item = temp;
+      const tempItem = targetSlot.item;
+      newGrid[toIndex] = { ...targetSlot, item: sourceSlot.item };
+      newGrid[fromIndex] = { ...sourceSlot, item: tempItem };
       playSound('pop');
       return newGrid;
     });
   };
 
   const handleSell = (index: number) => {
-    const item = grid[index].item;
-    if (!item) return;
-    const value = Math.floor(ITEM_DEFINITIONS[item.type].baseValue * Math.pow(2, item.level - 1));
-    setPlayer(prev => ({ ...prev, gold: prev.gold + value, xp: prev.xp + 5 }));
+    // We should re-check item existence inside updater, but for calculation we need it now.
+    // However, if we calculate price based on stale item, it's a minor exploit/bug risk.
+    // Better to just queue the update.
+
     setGrid(prev => {
+      const slot = prev[index];
+      if (!slot.item) return prev;
+
+      const item = slot.item;
+      const value = Math.floor(ITEM_DEFINITIONS[item.type].baseValue * Math.pow(2, item.level - 1));
+
+      // Side effect in reducer is not ideal but needed for synchronous feedback loop in this architecture
+      setPlayer(p => ({ ...p, gold: p.gold + value, xp: p.xp + 5 }));
+
       const newGrid = [...prev];
-      newGrid[index].item = null;
+      newGrid[index] = { ...slot, item: null };
       return newGrid;
     });
   };
@@ -500,7 +517,8 @@ const App: React.FC = () => {
       setGrid(prev => {
         const next = [...prev];
         itemsToConsume.forEach(idx => {
-          next[idx].item = null;
+          // Immutable update
+          next[idx] = { ...next[idx], item: null };
         });
         return next;
       });
@@ -571,6 +589,16 @@ const App: React.FC = () => {
           onClose={() => setShowDailyBonus(false)}
         />
       )}
+
+      {/* Heroes Modal */}
+      {showHeroes && (
+        <HeroesModal
+            unlockedHeroes={unlockedHeroes}
+            selectedHeroId={selectedHeroId}
+            onSelectHero={(id) => setSelectedHeroId(id)}
+            onClose={() => setShowHeroes(false)}
+        />
+      )}
       
       {/* Shake Wrapper */}
       <div className={`screen-shaker ${isShaking ? 'is-shaking' : ''}`}>
@@ -594,6 +622,7 @@ const App: React.FC = () => {
                moves={activeMission.moves}
                targetScore={activeMission.targetScore}
                difficulty={activeMission.difficulty}
+               hero={unlockedHeroes.find(h => h.id === selectedHeroId)}
                onComplete={handleMatch3Complete}
                onExit={() => setActiveMission(null)}
             />
@@ -739,10 +768,18 @@ const App: React.FC = () => {
                   </button>
               </div>
 
-              <button onClick={() => {playSound('pop'); setActiveTab('adventure')}} className={`flex flex-col items-center gap-1 transition-all duration-300 ${activeTab === 'adventure' ? 'scale-110 text-red-400 drop-shadow-[0_0_15px_rgba(248,113,113,0.6)] -translate-y-2' : 'text-slate-500 hover:text-slate-300'}`}>
-                  <Sword className="w-6 h-6" strokeWidth={2.5} />
-                  <span className="text-[9px] font-black uppercase tracking-widest">Batalha</span>
-              </button>
+              <div className="flex gap-4">
+                  <button onClick={() => {playSound('pop'); setActiveTab('adventure')}} className={`flex flex-col items-center gap-1 transition-all duration-300 ${activeTab === 'adventure' ? 'scale-110 text-red-400 drop-shadow-[0_0_15px_rgba(248,113,113,0.6)] -translate-y-2' : 'text-slate-500 hover:text-slate-300'}`}>
+                      <Sword className="w-6 h-6" strokeWidth={2.5} />
+                      <span className="text-[9px] font-black uppercase tracking-widest">Batalha</span>
+                  </button>
+
+                  {/* HERO BUTTON */}
+                  <button onClick={() => {playSound('pop'); setShowHeroes(true)}} className={`flex flex-col items-center gap-1 transition-all duration-300 text-slate-500 hover:text-slate-300`}>
+                      <User className="w-6 h-6" strokeWidth={2.5} />
+                      <span className="text-[9px] font-black uppercase tracking-widest">Heróis</span>
+                  </button>
+              </div>
            </div>
         </div>
 

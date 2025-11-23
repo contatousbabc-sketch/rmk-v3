@@ -54,3 +54,14 @@ export interface Mission {
   color: string;
   icon?: any; // Helper for icon rendering
 }
+
+export interface Hero {
+  id: string;
+  name: string;
+  description: string;
+  element: 'fire' | 'water' | 'earth' | 'light';
+  abilityName: string;
+  abilityDescription: string;
+  chargeRequired: number; // Matches required to activate
+  icon: string; // Emoji or image URL
+}

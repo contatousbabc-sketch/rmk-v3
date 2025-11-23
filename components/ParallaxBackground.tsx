@@ -14,103 +14,73 @@ export const ParallaxBackground: React.FC<ParallaxBackgroundProps> = ({ isNight 
       setMousePos({ x, y });
     };
 
+    const handleDeviceOrientation = (e: DeviceOrientationEvent) => {
+         if (e.beta && e.gamma) {
+             const x = Math.min(Math.max(e.gamma / 45, -1), 1);
+             const y = Math.min(Math.max(e.beta / 45, -1), 1);
+             setMousePos({ x, y });
+         }
+    };
+
     window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
+    window.addEventListener('deviceorientation', handleDeviceOrientation);
+
+    return () => {
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('deviceorientation', handleDeviceOrientation);
+    };
   }, []);
 
-  const parallaxOffset = {
-    transform: `translate3d(${mousePos.x * 20}px, ${mousePos.y * 20}px, 0)`,
-    transition: 'transform 0.3s ease-out',
-  };
-
   return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {/* Camada 1 - Fundo principal */}
+    <div className="absolute inset-0 overflow-hidden pointer-events-none bg-black">
+
+      {/* Background Image Layer */}
       <div
-        className={`absolute inset-[-10%] transition-colors duration-1000 ${
-          isNight
-            ? 'bg-gradient-to-br from-indigo-950 via-slate-900 to-black'
-            : 'bg-gradient-to-br from-blue-900 via-purple-800 to-slate-900'
-        }`}
-        style={{
-          transform: `translate3d(${mousePos.x * 10}px, ${mousePos.y * 10}px, 0)`,
-          transition: 'transform 0.5s ease-out, background 1s',
-        }}
+         className="absolute inset-[-5%] bg-cover bg-center transition-transform duration-100 ease-out"
+         style={{
+             backgroundImage: `url('background.jpeg')`,
+             transform: `translate3d(${mousePos.x * 20}px, ${mousePos.y * 20}px, 0) scale(1.1)`,
+             filter: isNight ? 'brightness(0.4) contrast(1.2) hue-rotate(-20deg)' : 'brightness(0.8) contrast(1.1)',
+             transition: 'filter 1s ease-in-out, transform 0.1s ease-out'
+         }}
       />
 
-      {/* Camada 2 - Estrelas distantes */}
+      {/* Overlay Gradient for UI Readability */}
+      <div className={`absolute inset-0 transition-opacity duration-1000 ${
+          isNight
+            ? 'bg-gradient-to-b from-indigo-950/80 via-transparent to-black/80'
+            : 'bg-gradient-to-b from-purple-900/40 via-transparent to-black/60'
+      }`}></div>
+
+      {/* Atmospheric Particles */}
       <div
-        className="absolute inset-[-10%]"
-        style={parallaxOffset}
+        className="absolute inset-0"
+        style={{
+          transform: `translate3d(${mousePos.x * -30}px, ${mousePos.y * -30}px, 0)`,
+          transition: 'transform 0.3s ease-out',
+        }}
       >
-        {[...Array(50)].map((_, i) => (
+        {/* Floating dust/magic motes */}
+        {[...Array(30)].map((_, i) => (
           <div
-            key={`star-${i}`}
-            className={`absolute w-1 h-1 rounded-full ${
-              isNight ? 'bg-white' : 'bg-white/30'
-            }`}
+            key={`mote-${i}`}
+            className="absolute w-1 h-1 rounded-full bg-white/40 blur-[1px]"
             style={{
               left: `${Math.random() * 100}%`,
               top: `${Math.random() * 100}%`,
-              opacity: Math.random() * 0.7 + 0.3,
-              animation: `twinkle ${Math.random() * 3 + 2}s infinite`,
-            }}
-          />
-        ))}
-      </div>
-
-      {/* Camada 3 - Nebulosas */}
-      <div
-        className="absolute inset-[-20%] opacity-30"
-        style={{
-          transform: `translate3d(${mousePos.x * 30}px, ${mousePos.y * 30}px, 0)`,
-          transition: 'transform 0.2s ease-out',
-        }}
-      >
-        <div
-          className={`absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-3xl ${
-            isNight ? 'bg-blue-500/20' : 'bg-purple-500/20'
-          }`}
-        />
-        <div
-          className={`absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full blur-3xl ${
-            isNight ? 'bg-indigo-500/20' : 'bg-pink-500/20'
-          }`}
-        />
-      </div>
-
-      {/* Camada 4 - Partículas flutuantes */}
-      <div
-        className="absolute inset-[-10%]"
-        style={{
-          transform: `translate3d(${mousePos.x * -15}px, ${mousePos.y * -15}px, 0)`,
-          transition: 'transform 0.4s ease-out',
-        }}
-      >
-        {[...Array(20)].map((_, i) => (
-          <div
-            key={`particle-${i}`}
-            className="absolute w-2 h-2 rounded-full bg-white/10 blur-sm"
-            style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              animation: `float ${Math.random() * 10 + 5}s infinite ease-in-out`,
-              animationDelay: `${Math.random() * 5}s`,
+              animation: `float ${Math.random() * 10 + 10}s infinite linear`,
+              opacity: Math.random() * 0.5 + 0.2,
             }}
           />
         ))}
       </div>
 
       <style>{`
-        @keyframes twinkle {
-          0%, 100% { opacity: 0.3; }
-          50% { opacity: 1; }
-        }
-
         @keyframes float {
-          0%, 100% { transform: translateY(0) translateX(0); }
-          33% { transform: translateY(-20px) translateX(10px); }
-          66% { transform: translateY(10px) translateX(-10px); }
+          0% { transform: translateY(0) translateX(0); opacity: 0; }
+          10% { opacity: 0.5; }
+          90% { opacity: 0.5; }
+          100% { transform: translateY(-100px) translateX(20px); opacity: 0; }
         }
       `}</style>
     </div>

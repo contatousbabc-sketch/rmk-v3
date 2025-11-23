@@ -1,6 +1,5 @@
 
 import React, { useEffect, useRef } from 'react';
-import { VisualEffectType } from '../utils/events';
 
 interface Particle {
   id: number;
@@ -12,7 +11,7 @@ interface Particle {
   maxLife: number;
   size: number;
   color: string;
-  type: 'sparkle' | 'coin' | 'confetti' | 'text' | 'trail' | 'shockwave';
+  type: 'sparkle' | 'coin' | 'confetti' | 'text' | 'trail' | 'shockwave' | 'firework' | 'beam';
   text?: string;
   gravity: number;
   rotation: number;
@@ -45,6 +44,7 @@ export const VisualEffects: React.FC = () => {
       const angle = Math.random() * Math.PI * 2;
       const speed = options.speed || Math.random() * 5 + 2;
       
+      // Updated vibrant colors
       let color = options.color || '#fff';
       let size = options.size || Math.random() * 4 + 2;
       let gravity = 0.2;
@@ -52,35 +52,43 @@ export const VisualEffects: React.FC = () => {
       let alpha = 1;
       
       if (type === 'coin') {
-          color = '#FFD700';
+          color = '#fbbf24'; // Lighter Gold
           size = 12;
           gravity = 0.8;
           life = 100;
       } else if (type === 'sparkle') {
-          life = 20 + Math.random() * 20;
+          life = 30 + Math.random() * 20;
           gravity = 0.05;
           size = Math.random() * 3 + 1;
       } else if (type === 'text') {
-          life = 60;
+          life = 80;
           gravity = -0.5;
           size = 30;
       } else if (type === 'trail') {
-          life = 15;
+          life = 20;
           gravity = 0;
           size = Math.random() * 4 + 2;
-          color = options.color || 'rgba(255, 215, 0, 0.5)';
+          color = options.color || 'rgba(251, 191, 36, 0.5)';
       } else if (type === 'shockwave') {
-          life = 20;
+          life = 30;
           gravity = 0;
           size = 10; // Initial radius
           color = options.color || '#fff';
+      } else if (type === 'firework') {
+          life = 50 + Math.random() * 20;
+          gravity = 0.1;
+          size = Math.random() * 3 + 2;
+      } else if (type === 'beam') {
+          life = 40;
+          gravity = 0;
+          size = options.width || 20;
       }
 
       return {
         id: particleIdCounter.current++,
         x, y,
-        vx: type === 'shockwave' ? 0 : Math.cos(angle) * speed * (type === 'text' ? 0.2 : 1),
-        vy: type === 'shockwave' ? 0 : Math.sin(angle) * speed * (type === 'text' ? 0.2 : 1) - (type === 'coin' ? 8 : 0),
+        vx: type === 'shockwave' || type === 'beam' ? 0 : Math.cos(angle) * speed * (type === 'text' ? 0.2 : 1),
+        vy: type === 'shockwave' || type === 'beam' ? 0 : Math.sin(angle) * speed * (type === 'text' ? 0.2 : 1) - (type === 'coin' ? 8 : 0),
         life,
         maxLife: life,
         size,
@@ -100,39 +108,54 @@ export const VisualEffects: React.FC = () => {
 
         if (type === 'MERGE_EXPLOSION') {
             // Shockwave
-            particlesRef.current.push(createParticle('shockwave', x, y, { color: color || '#FFD700' }));
+            particlesRef.current.push(createParticle('shockwave', x, y, { color: color || '#f472b6' })); // Pink shockwave
             
             // Sparkles
-            for (let i = 0; i < 20; i++) {
+            for (let i = 0; i < 30; i++) {
                 particlesRef.current.push(createParticle('sparkle', x, y, { 
                     color: color || '#fff',
-                    speed: Math.random() * 8 + 2
+                    speed: Math.random() * 10 + 2
                 }));
             }
+        } else if (type === 'HERO_SUMMON') {
+             // Big beam
+             particlesRef.current.push(createParticle('beam', x, window.innerHeight, { color: '#f59e0b', width: 150 }));
+
+             // Fireworks
+             setTimeout(() => {
+                 const colors = ['#f59e0b', '#fbbf24', '#a855f7', '#ec4899']; // Gold, Purple, Pink
+                 for (let i = 0; i < 120; i++) {
+                     particlesRef.current.push(createParticle('firework', x, y, {
+                         color: colors[Math.floor(Math.random() * colors.length)],
+                         speed: Math.random() * 15 + 5
+                     }));
+                 }
+             }, 200);
+
         } else if (type === 'SHOCKWAVE') {
              particlesRef.current.push(createParticle('shockwave', x, y, { color: color || '#fff' }));
         } else if (type === 'DRAG_TRAIL') {
-             // Emit fewer particles for trails to save perf
-             if (Math.random() > 0.5) {
+             if (Math.random() > 0.4) {
                  particlesRef.current.push(createParticle('trail', x, y, { 
-                     color: color,
+                     color: color || '#fcd34d',
                      speed: 0.5 
                  }));
              }
         } else if (type === 'GOLD_RAIN') {
-             for (let i = 0; i < 15; i++) {
+             for (let i = 0; i < 20; i++) {
                  setTimeout(() => {
+                    if (!canvas) return; // check canvas existence in callback
                     particlesRef.current.push(createParticle('coin', Math.random() * canvas.width, -20, {
                         speed: Math.random() * 3
                     }));
                  }, i * 50);
              }
         } else if (type === 'CONFETTI') {
-             const colors = ['#ef4444', '#22c55e', '#3b82f6', '#eab308', '#a855f7'];
-             for (let i = 0; i < 60; i++) {
+             const colors = ['#ef4444', '#22c55e', '#3b82f6', '#eab308', '#a855f7', '#ec4899', '#06b6d4']; // Added Cyan
+             for (let i = 0; i < 80; i++) {
                  particlesRef.current.push(createParticle('confetti', canvas.width/2, canvas.height/2, {
                      color: colors[Math.floor(Math.random() * colors.length)],
-                     speed: 15 + Math.random() * 10
+                     speed: 15 + Math.random() * 15
                  }));
              }
         } else if (type === 'TEXT_POPUP') {
@@ -147,7 +170,9 @@ export const VisualEffects: React.FC = () => {
 
     // --- Render Loop ---
     const render = () => {
+      if (!ctx || !canvas) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.globalCompositeOperation = 'lighter'; // Additive blending for glow
 
       // Optimized loop reverse
       for (let i = particlesRef.current.length - 1; i >= 0; i--) {
@@ -161,13 +186,24 @@ export const VisualEffects: React.FC = () => {
             
             ctx.beginPath();
             ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-            ctx.lineWidth = 10 * p.alpha;
+            ctx.lineWidth = 15 * p.alpha;
             ctx.strokeStyle = p.color;
             ctx.globalAlpha = p.alpha;
             ctx.stroke();
             ctx.globalAlpha = 1;
-
-        } else {
+        }
+        else if (p.type === 'beam') {
+             p.alpha = p.life / p.maxLife;
+             ctx.save();
+             ctx.globalAlpha = p.alpha;
+             const grad = ctx.createLinearGradient(0, p.y, 0, 0);
+             grad.addColorStop(0, p.color);
+             grad.addColorStop(1, 'transparent');
+             ctx.fillStyle = grad;
+             ctx.fillRect(p.x - p.size/2, 0, p.size, window.innerHeight);
+             ctx.restore();
+        }
+        else {
             // Physics
             p.x += p.vx;
             p.y += p.vy;
@@ -189,6 +225,7 @@ export const VisualEffects: React.FC = () => {
 
             if (p.type === 'text' && p.text) {
                 ctx.save();
+                ctx.globalCompositeOperation = 'source-over';
                 ctx.shadowColor = 'black';
                 ctx.shadowBlur = 4;
                 ctx.font = `900 ${p.size}px 'Nunito', sans-serif`;
@@ -212,6 +249,7 @@ export const VisualEffects: React.FC = () => {
             }
             else if (p.type === 'coin') {
                 ctx.save();
+                ctx.globalCompositeOperation = 'source-over';
                 ctx.translate(p.x, p.y);
                 ctx.rotate(p.rotation * Math.PI / 180);
                 // Gold coin
@@ -229,7 +267,7 @@ export const VisualEffects: React.FC = () => {
                 ctx.fill();
                 ctx.restore();
             } 
-            else if (p.type === 'sparkle') {
+            else if (p.type === 'sparkle' || p.type === 'firework') {
                 ctx.save();
                 ctx.translate(p.x, p.y);
                 ctx.fillStyle = p.color;
@@ -255,6 +293,7 @@ export const VisualEffects: React.FC = () => {
         }
       }
 
+      ctx.globalCompositeOperation = 'source-over';
       animationFrameRef.current = requestAnimationFrame(render);
     };
 
